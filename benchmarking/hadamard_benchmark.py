@@ -7,6 +7,7 @@ import time
 SIZE = 2 ** 20
 BLOCK_SIZE = 1024
 
+start = time.time()
 
 with open("hadamard.cuh", "r") as f:
     kernel_code = f.read()
@@ -21,13 +22,12 @@ b = numpy.random.rand(SIZE).astype(numpy.float32)
 
 dest = numpy.zeros_like(a)
 
-start = time.time()
 multiply_them(drv.Out(dest), drv.In(a), drv.In(b),block=(BLOCK_SIZE, 1, 1), grid=(int(numpy.ceil(SIZE / BLOCK_SIZE)), 1))
 
-stop = time.time() - start
-print(f"Time is {stop * 1e3} ms")
 
 res = dest[:5] - (a[:5] * b[:5])
 print(res)
+stop = time.time() - start
+print(f"Time is {stop * 1e3} ms")
 
 
