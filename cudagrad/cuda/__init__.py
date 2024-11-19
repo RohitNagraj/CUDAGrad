@@ -1,1 +1,1 @@
-from . import add, mul, dot, pow, log
+from . import add, mul, dot, pow, log, exp

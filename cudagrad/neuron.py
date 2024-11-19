@@ -1,0 +1,34 @@
+import numpy as np
+
+from cudagrad.tensor import Tensor1D
+
+
+class Neuron:
+    def __init__(self, n_input):
+        self.w = Tensor1D(np.random.randn(n_input))
+        self.b = Tensor1D(np.random.randn(1))
+
+    def __call__(self, x: Tensor1D):
+        activation = self.w.dot(x) + self.b
+        output = self._tanh(activation)
+        return output
+
+    def _tanh(self, x: Tensor1D):
+        two_x = x * 2
+        exp_two_x = two_x.exp()
+        numerator = exp_two_x - 1
+        denominator = exp_two_x + 1
+        result = numerator / denominator
+        return result
+
+    def parameters(self):
+        return [self.w, self.b]
+
+
+if __name__ == '__main__':
+    size = 5
+    n = Neuron(size)
+    x = Tensor1D(np.random.randn(size))
+    y = n(x)
+    y.backward()
+    print(y)

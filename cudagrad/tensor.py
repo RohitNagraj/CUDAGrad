@@ -5,6 +5,9 @@ from cudagrad import cuda
 
 
 class Tensor1D:
+    """
+    All the backward functions are running on CPU. Need to parallelize them.
+    """
     def __init__(self, data: list | np.ndarray, _children=(), _op="", label="", backend='cuda') -> None:
         self.data = np.array(data).astype(np.float32)
         self.shape = self.data.shape
@@ -94,10 +97,22 @@ class Tensor1D:
         out._backward = _backward
         return out
 
+    def exp(self):
+        if self.backend == 'cuda':
+            out = Tensor1D(cuda.exp.exp1D(self.data), (self,), "exp")
+        else:
+            out = Tensor1D(np.exp(self.data), (self,), "exp")
+
+        def _backward():
+            self.grad += out.data * out.grad
+
+        out._backward = _backward
+        return out
+
     def backward(self):
         """
         TODO: The current logic runs every child sequentially, even if they are at the same level in the graph,
-        parallelize it for all childen in one layer at once.
+        parallelize it for all children in one layer at once.
         """
         topological_order = []
         visited = set()
@@ -151,9 +166,8 @@ if __name__ == '__main__':
     # a = Tensor1D(np.random.rand(size), backend=backend, label='a')
     # b = Tensor1D(np.random.rand(size), backend=backend, label='b')
     a = Tensor1D([2, 3])
-    b = Tensor1D([3, 4])
-    c = a * b
-    d = 2 * c
+    # b = Tensor1D([3, 4])
+    e = a.exp()
 
-    d.backward()
+    e.backward()
     print(f"Backend: {backend}, Time Taken: {time.time() - start} seconds")
