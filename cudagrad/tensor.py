@@ -1,5 +1,4 @@
 import numpy as np
-from triton.tools.build_extern import build
 
 from cudagrad import cuda
 
@@ -8,6 +7,7 @@ class Tensor1D:
     """
     All the backward functions are running on CPU. Need to parallelize them.
     """
+
     def __init__(self, data: list | np.ndarray, _children=(), _op="", label="", backend='cuda') -> None:
         self.data = np.array(data).astype(np.float32)
         self.shape = self.data.shape
@@ -157,8 +157,8 @@ if __name__ == '__main__':
     # Testing the tensor class here, enforcing output is similar to torch.
     import time
 
-    backend = 'numpy'
-    # backend = 'cuda'
+    # backend = 'numpy'
+    backend = 'cuda'
     size = 4
 
     start = time.time()
@@ -166,8 +166,9 @@ if __name__ == '__main__':
     # a = Tensor1D(np.random.rand(size), backend=backend, label='a')
     # b = Tensor1D(np.random.rand(size), backend=backend, label='b')
     a = Tensor1D([2, 3])
-    # b = Tensor1D([3, 4])
-    e = a.exp()
+    b = Tensor1D([3, 4])
+    c = a * b
+    # e = a.exp()
 
-    e.backward()
+    c.backward()
     print(f"Backend: {backend}, Time Taken: {time.time() - start} seconds")
