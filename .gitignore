@@ -1,2 +1,5 @@
 .ipynb_checkpoints
 .venv
+
+# Ignore all folders which are __pycache__
+src/tensor/__pycache__/
