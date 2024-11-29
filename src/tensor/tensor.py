@@ -6,7 +6,7 @@ import queue
 
 KERNEL_PATH = "cuda/"
 
-class Tensor:
+class Tensor2D:
     # def initilizeCudaKernel(self):
     #     with open(f"{KERNEL_PATH}addTensor.cuh", "r") as f:
     #         addTensorCode = f.read()
@@ -42,7 +42,7 @@ class Tensor:
     
     # Define a .T function to get the Transpose of the Tensor
     def T(self):
-        return Tensor(self.data.T, label=self.label+"_T", trackGradient=self.trackGradient)
+        return Tensor2D(self.data.T, label=self.label+"_T", trackGradient=self.trackGradient)
     
 
     
@@ -55,10 +55,11 @@ class Tensor:
         '''
         Add two tensors elementwise
         '''
-        if self.data.shape != other.data.shape:
-            raise ValueError(f"Shape of Tensors are not same. {self.data.shape} != {other.data.shape}")
-        other = other if isinstance(other, Tensor) else Tensor(other)
-        c = Tensor(np.zeros_like(self.data), (self, other), "+")
+        # Broadcast the other tensor to the shape of self tensor
+
+
+        other = other if isinstance(other, Tensor2D) else Tensor2D(other)
+        c = Tensor2D(np.zeros_like(self.data), (self, other), "+")
         # blocks, threads = self.calculateElementwiseGridAndBlock()
         with cupyx.profiler.profile():
             # self.addTensor(blocks, threads, (self.data, other.data, c.data, self.data.size))
@@ -66,7 +67,11 @@ class Tensor:
         
         def _backward():
             self.grad += 1.0 * c.grad
-            other.grad += 1.0 * c.grad
+            # If shapes are not same, then we need to sum the gradients
+            if self.data.shape != other.data.shape:
+                other.grad += 1.0 * c.grad.sum(axis=0)
+            else:
+                other.grad += 1.0 * c.grad
 
         if self.trackGradient:
             c._backward = _backward
@@ -79,8 +84,8 @@ class Tensor:
         '''
         if self.data.shape != other.data.shape:
             raise ValueError(f"Shape of Tensors are not same. {self.data.shape} != {other.data.shape}")
-        other = other if isinstance(other, Tensor) else Tensor(other)
-        c = Tensor(np.zeros_like(self.data), (self, other), "-")
+        other = other if isinstance(other, Tensor2D) else Tensor2D(other)
+        c = Tensor2D(np.zeros_like(self.data), (self, other), "-")
 
         with cupyx.profiler.profile():
             c.data = self.data - other.data
@@ -98,8 +103,8 @@ class Tensor:
         '''
         if self.data.shape != other.data.shape:
             raise ValueError(f"Shape of Tensors are not same. {self.data.shape} != {other.data.shape}")
-        other = other if isinstance(other, Tensor) else Tensor(other)
-        c = Tensor(np.zeros_like(self.data), (self, other), "*")
+        other = other if isinstance(other, Tensor2D) else Tensor2D(other)
+        c = Tensor2D(np.zeros_like(self.data), (self, other), "*")
 
         with cupyx.profiler.profile():
             c.data = self.data * other.data
@@ -120,8 +125,8 @@ class Tensor:
         # If Shape is not same, then raise an error
         if self.data.shape[1] != other.data.shape[0]:
             raise ValueError(f"Shape of Tensors are not same. {self.data.shape} != {other.data.shape}")
-        other = other if isinstance(other, Tensor) else Tensor(other)
-        c = Tensor(np.zeros((self.data.shape[0], other.data.shape[1])), (self, other), "@")
+        other = other if isinstance(other, Tensor2D) else Tensor2D(other)
+        c = Tensor2D(np.zeros((self.data.shape[0], other.data.shape[1])), (self, other), "@")
         # blocks, threads = self.calculateGridAndBlock()
         # print(blocks, threads)
         with cupyx.profiler.profile():
@@ -138,7 +143,7 @@ class Tensor:
         return c
     
     def log(self):
-        c = Tensor(np.log(self.data), (self,), "log("+self.label+")")
+        c = Tensor2D(cp.log(self.data), (self,), "log("+self.label+")")
         def _backward():
             self.grad += 1.0 * c.grad / self.data
         if self.trackGradient:
@@ -146,20 +151,78 @@ class Tensor:
         return c
     
     def exp(self):
-        c = Tensor(np.exp(self.data), (self,), "exp("+self.label+")")
+        c = Tensor2D(cp.exp(self.data), (self,), "exp("+self.label+")")
         def _backward():
             self.grad += 1.0 * c.grad * c.data
         if self.trackGradient:
             c._backward = _backward
         return c
-    
-    def sum(self, axis=None):
-        c = Tensor(self.data.sum(axis=axis), (self,), "sum("+self.label+")")
+
+    def __truediv__(self, other):
+        '''
+        Divide two tensors elementwise
+        '''
+        if self.data.shape != other.data.shape:
+            raise ValueError(f"Shape of Tensors are not same. {self.data.shape} != {other.data.shape}")
+        other = other if isinstance(other, Tensor2D) else Tensor2D(other)
+        c = Tensor2D(np.zeros_like(self.data), (self, other), "/")
+
+        with cupyx.profiler.profile():
+            c.data = self.data / other.data
+        
+        def _backward():
+            self.grad += 1.0 * c.grad / other.data
+            other.grad -= 1.0 * c.grad * self.data / (other.data ** 2)
+        
+        if self.trackGradient:
+            c._backward = _backward
+        
+        return c
+
+
+    def sum(self, axis=None, keepdims=False):
+        c = Tensor2D(cp.sum(self.data, axis=axis, keepdims=keepdims), (self,), "sum("+self.label+")")
         def _backward():
             self.grad += 1.0 * c.grad
         if self.trackGradient:
             c._backward = _backward
         return c
+    
+    def softmax(self, data):
+        with cupyx.profiler.profile():
+            data = self.data - cp.max(self.data, axis=1, keepdims=True)
+            data = cp.exp(data)
+            data = data / cp.sum(data, axis=1, keepdims=True)
+
+        return data
+    
+    def crossEntropyLoss(self, y):
+        '''self.data is the logits and y is a vetor of correct labels'''
+        c = Tensor2D(cp.zeros_like(self.data), (self, self), "crossEntropyLoss("+self.label+")")
+
+        with cupyx.profiler.profile():
+            c.data = self.softmax(self.data)
+            c.data = cp.log(c.data)
+            c.data = -c.data[:, y].mean()
+        
+        def _backward():
+            self.grad = self.softmax(self.data)
+            self.grad[cp.arange(self.data.shape[0]), y] -= 1.0
+            self.grad /= self.data.shape[0]
+        
+        if self.trackGradient:
+            c._backward = _backward
+        
+        return c
+    
+    def relu(self):
+        c = Tensor2D(cp.maximum(0, self.data), (self,), "relu("+self.label+")")
+        def _backward():
+            self.grad += (c.data > 0) * c.grad
+        if self.trackGradient:
+            c._backward = _backward
+        return c
+
     
     def backward(self):
         # Run the Backward Function of all the children
