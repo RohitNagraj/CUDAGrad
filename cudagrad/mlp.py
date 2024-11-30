@@ -20,7 +20,7 @@ class MLP:
 
 
 if __name__ == '__main__':
-    learning_rate = 0.01
+    learning_rate = 0.1
     n_iters = 5
     # Sample dataset
     xs = [
@@ -31,10 +31,6 @@ if __name__ == '__main__':
     ]
     ys = Tensor1D([1.0, -1.0, -1.0, 1.0])
 
-
-    #
-    # xs = [[2.0, 3.0, -1.0], ]
-    # ys = [1.0, ]
 
     # MSE Loss
     def calculate_loss(y_true, y_pred):

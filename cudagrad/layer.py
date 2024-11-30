@@ -1,11 +1,7 @@
-import time
-
 import numpy as np
 
 from cudagrad.neuron import Neuron
 from cudagrad.tensor import Tensor1D
-
-# array([0.08265368, 0.05181965, 0.02159165]
 
 
 class Layer:
@@ -18,14 +14,13 @@ class Layer:
         return f"Layer(n_input={self.n_input}, n_output={self.n_output})"
 
     def __call__(self, x):
-        start = time.time()
         outputs = [n(x) for n in self.neurons]
-        print(f"Time taken per layer: {time.time() - start}")
         outputs = Tensor1D.concat(outputs)
         return outputs
 
     def parameters(self):
         return [p for neuron in self.neurons for p in neuron.parameters()]
+
 
 if __name__ == '__main__':
     n_input = 3

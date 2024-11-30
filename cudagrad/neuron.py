@@ -1,5 +1,3 @@
-import time
-
 import numpy as np
 
 from cudagrad.tensor import Tensor1D
@@ -16,10 +14,8 @@ class Neuron:
         return f"Neuron(n_input={self.n_input})"
 
     def __call__(self, x: Tensor1D):
-        start = time.time()
         activation = self.w.dot(x) + self.b
         output = self._tanh(activation)
-        print(f"Time taken per neuron: {time.time() - start}")
         return output
 
     def _tanh(self, x: Tensor1D):
