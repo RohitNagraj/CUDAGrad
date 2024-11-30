@@ -2,3 +2,4 @@
 .venv
 .idea
 report*
+__pycache__
