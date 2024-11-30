@@ -3,3 +3,4 @@
 .idea
 report*
 __pycache__
+src/tensor/__pycache__/
