@@ -10,6 +10,8 @@ class Tensor1D:
 
     def __init__(self, data: list | np.ndarray, _children=(), _op="", label="", backend='cuda') -> None:
         self.data = np.array(data).astype(np.float32)
+        if self.data.ndim == 0:
+            self.data = np.array([data, ]).astype(np.float32)
         self.shape = self.data.shape
         self.backend = backend
         self.grad = np.zeros_like(self.data)
@@ -19,12 +21,15 @@ class Tensor1D:
         self._backward = lambda: None
 
     def __repr__(self) -> str:
-        return f"Tensor1D(data={str(self.data.tolist())})"
+        if self.label != "":
+            return f"Tensor1D(data={str(self.data.tolist())}, label={self.label})"
+        else:
+            return f"Tensor1D(data={str(self.data.tolist())})"
 
     def __add__(self, other):
         other = other if isinstance(other, Tensor1D) else Tensor1D(other * np.ones_like(self.data))
 
-        assert len(self.data) == len(other.data), "Length of the two tensors must match."
+        assert self.data.size == other.data.size, "Length of the two tensors must match."
 
         if self.backend == 'cuda':
             out = Tensor1D(cuda.add.add1D(self.data, other.data), (self, other), "+")
@@ -73,6 +78,20 @@ class Tensor1D:
         # The behaviour of dot(Tensor1D, scalar) is different from numpy. Here we convert it to vector and process.
         other = other if isinstance(other, Tensor1D) else Tensor1D(other * np.ones_like(self.data))
 
+        if self.backend == 'cuda':
+            out = Tensor1D(cuda.dot.dot1D(self.data, other.data), (self, other), "dot")
+        else:
+            out = Tensor1D(np.dot(self.data, other.data), (self, other), "dot")
+
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+
+        out._backward = _backward
+        return out
+
+    def sum(self):
+        other = Tensor1D(np.ones_like(self.data))
         if self.backend == 'cuda':
             out = Tensor1D(cuda.dot.dot1D(self.data, other.data), (self, other), "dot")
         else:
@@ -135,7 +154,37 @@ class Tensor1D:
         return self * (other ** -1)
 
     def __sub__(self, other):
-        return self + (-other)
+        other = other if isinstance(other, Tensor1D) else Tensor1D(other * np.ones_like(self.data))
+
+        assert self.data.size == other.data.size, "Length of the two tensors must match."
+
+        if self.backend == 'cuda':
+            out = Tensor1D(cuda.add.add1D(self.data, -other.data), (self, other), "-")
+        else:
+            out = Tensor1D(self.data - other.data, (self, other), "-")
+
+        def _backward():
+            # TODO: Make it run on CUDA.
+            self.grad += 1.0 * out.grad
+            other.grad += -1.0 * out.grad
+
+        out._backward = _backward
+        return out
+
+    @staticmethod
+    def concat(tensor_list):
+        data = np.concat([x.data for x in tensor_list])
+        grads = np.concat([x.grad for x in tensor_list])
+
+        out = Tensor1D(data, _children=tensor_list, _op="concat")
+        out.grad = grads
+
+        def _backward():
+            for (tensor, grad) in zip(tensor_list, out.grad):
+                tensor.grad += grad
+
+        out._backward = _backward
+        return out
 
     def __neg__(self):
         return -1 * self.data
@@ -165,10 +214,16 @@ if __name__ == '__main__':
 
     # a = Tensor1D(np.random.rand(size), backend=backend, label='a')
     # b = Tensor1D(np.random.rand(size), backend=backend, label='b')
-    a = Tensor1D([2, 3])
-    b = Tensor1D([3, 4])
-    c = a * b
+    a = Tensor1D([1], label='a')
+    b = Tensor1D([2], label='b')
+    c = Tensor1D.concat([a, b])
+    c.label = 'c'
+    d = Tensor1D([3], label='d')
+    e = Tensor1D([3], label='e')
+    f = Tensor1D.concat([d, e])
+    g = c.dot(f)
+    g.label = 'g'
     # e = a.exp()
 
-    c.backward()
+    g.backward()
     print(f"Backend: {backend}, Time Taken: {time.time() - start} seconds")
