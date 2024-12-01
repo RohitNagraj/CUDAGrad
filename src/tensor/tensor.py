@@ -4,14 +4,14 @@ import numpy as np
 import cupyx
 import queue
 
-KERNEL_PATH = "cuda/"
-
+KERNEL_PATH = "tensor/cuda/"
+# src/tensor/cuda/addTensor.cuh
 class Tensor2D:
-    # def initilizeCudaKernel(self):
-    #     with open(f"{KERNEL_PATH}addTensor.cuh", "r") as f:
-    #         addTensorCode = f.read()
-    #     self.addTensor = cp.RawKernel(addTensorCode, "addTensor")
-    #     self.addTensor.compile()
+    def initilizeCudaKernel(self):
+        with open(f"{KERNEL_PATH}/addTensor.cuh", "r") as f:
+            addTensorCode = f.read()
+        self.addTensor = cp.RawKernel(addTensorCode, "addTensor")
+        self.addTensor.compile()
 
     #     with open(f"{KERNEL_PATH}matmulTensor.cuh", "r") as f:
     #         matmulCode = f.read()
@@ -19,23 +19,27 @@ class Tensor2D:
     #     self.matmulTensor = cp.RawKernel(matmulCode, "multiplyTensor")
     #     self.matmulTensor.compile()
     
-    # def CEIL_DIV(self, M, N):
-    #     return (((M) + (N)-1) // (N))
+    def CEIL_DIV(self, M, N):
+        return (((M) + (N)-1) // (N))
     
-    # def calculateGridAndBlock(self):
-    #     blocks = (self.CEIL_DIV(self.data.shape[0], 32), self.CEIL_DIV(self.data.shape[1], 32))
-    #     threads = (32 * 32,)
-    #     return (blocks, threads)
+    def calculateGridAndBlock(self):
+        blocks = (self.CEIL_DIV(self.data.shape[0], 32), self.CEIL_DIV(self.data.shape[1], 32))
+        threads = (32 * 32,)
+        return (blocks, threads)
 
-    def __init__(self, data: list | np.ndarray, _children=(), _op="", label="", trackGradient=True) -> None:
-        self.data = cp.array(data).astype(cp.float32)
+    def __init__(self, data: list | np.ndarray | cp.ndarray, _children=(), _op="", label="", trackGradient=True) -> None:
+        if isinstance(data, list):
+            data = np.array(data)
+        if isinstance(data, np.ndarray):
+            data = cp.array(data, dtype=cp.float32)
+        self.data = data
         self.grad = cp.zeros_like(self.data)
         self._prev = set(_children)
         self._op = _op
         self.label = label
         self.trackGradient = trackGradient
         self._backward = lambda: None
-        # self.initilizeCudaKernel()
+        self.initilizeCudaKernel()
     
     def __repr__(self):
         return f"Tensor(label={self.label}, trackGradient={self.trackGradient})"
@@ -46,10 +50,10 @@ class Tensor2D:
     
 
     
-    # def calculateElementwiseGridAndBlock(self):
-    #     numThreads = 1024
-    #     numBlocks = (self.data.size + numThreads - 1) // numThreads
-    #     return (numBlocks,), (numThreads,)
+    def calculateElementwiseGridAndBlock(self):
+        numThreads = min(self.data.shape[1], 1024)
+        numBlocks = self.CEIL_DIV(self.data.size, numThreads)
+        return (numBlocks,), (numThreads,)
     
     def __add__(self, other):
         '''
@@ -60,10 +64,20 @@ class Tensor2D:
 
         other = other if isinstance(other, Tensor2D) else Tensor2D(other)
         c = Tensor2D(np.zeros_like(self.data), (self, other), "+")
-        # blocks, threads = self.calculateElementwiseGridAndBlock()
+
+        blocks, threads = self.calculateElementwiseGridAndBlock()
+        print(blocks, threads)
+        
         with cupyx.profiler.profile():
-            # self.addTensor(blocks, threads, (self.data, other.data, c.data, self.data.size))
-            c.data = self.data + other.data
+            if self.data.shape != other.data.shape:
+                broadcasted_other_data = cp.broadcast_to(other.data, self.data.shape)
+                print("Broadcasted other shape:", broadcasted_other_data.shape)
+            
+                self.addTensor(blocks, threads, (self.data, broadcasted_other_data, c.data, self.data.size))
+            else:
+                self.addTensor(blocks, threads, (self.data, other.data, c.data, self.data.size))
+
+            # c.data = self.data + other.data
         
         def _backward():
             self.grad += 1.0 * c.grad
