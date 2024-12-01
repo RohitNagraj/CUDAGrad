@@ -38,7 +38,9 @@ class Tensor2D:
         # self.initilizeCudaKernel()
     
     def __repr__(self):
-        return f"Tensor(label={self.label}, trackGradient={self.trackGradient})"
+        if self.label != "":
+            return f"Tensor2D(shape={self.data.shape}, label={self.label})"
+        return f"Tensor2D(shape={self.data.shape})"
     
     # Define a .T function to get the Transpose of the Tensor
     def T(self):
@@ -239,7 +241,7 @@ class Tensor2D:
                 topo.append(v)   
 
         build_topo(self)
-        print("Order of Computation: ", topo[::-1])
+        self.grad = cp.ones_like(self.data)
 
         for v in reversed(topo):
             v._backward()
