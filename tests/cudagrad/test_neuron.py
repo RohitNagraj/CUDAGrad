@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import pytest
 
-from cudagrad.neuron import Neuron
+from cudagrad.neuron1D import Neuron
 from cudagrad.tensor import Tensor1D
 
 
