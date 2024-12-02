@@ -13,6 +13,9 @@ class Tensor2D:
         self.addTensor = cp.RawKernel(addTensorCode, "addTensor")
         self.addTensor.compile()
 
+        self.addBroadcastedTensor = cp.RawKernel(addTensorCode, "addBroadcastedTensor")
+        self.addBroadcastedTensor.compile()
+
     #     with open(f"{KERNEL_PATH}matmulTensor.cuh", "r") as f:
     #         matmulCode = f.read()
         
@@ -28,12 +31,8 @@ class Tensor2D:
         return (blocks, threads)
 
     def __init__(self, data: list | np.ndarray | cp.ndarray, _children=(), _op="", label="", trackGradient=True) -> None:
-        if isinstance(data, list):
-            data = np.array(data)
-        if isinstance(data, np.ndarray):
-            data = cp.array(data, dtype=cp.float32)
-        self.data = data
-        self.grad = cp.zeros_like(self.data)
+        self.data = cp.array(data, dtype=cp.float32)
+        self.grad = cp.zeros_like(self.data, dtype=cp.float32)
         self._prev = set(_children)
         self._op = _op
         self.label = label
@@ -62,18 +61,17 @@ class Tensor2D:
         # Broadcast the other tensor to the shape of self tensor
 
 
-        other = other if isinstance(other, Tensor2D) else Tensor2D(other)
-        c = Tensor2D(np.zeros_like(self.data), (self, other), "+")
+        if not isinstance(other, Tensor2D):
+            raise ValueError("Addition is only supported between two tensors")
+        
+        c = Tensor2D(cp.zeros_like(self.data, dtype=cp.float32), (self, other), "+")
 
         blocks, threads = self.calculateElementwiseGridAndBlock()
         print(blocks, threads)
-        
+        print(type(self.data), type(other.data), type(c.data))
         with cupyx.profiler.profile():
             if self.data.shape != other.data.shape:
-                broadcasted_other_data = cp.broadcast_to(other.data, self.data.shape)
-                print("Broadcasted other shape:", broadcasted_other_data.shape)
-            
-                self.addTensor(blocks, threads, (self.data, broadcasted_other_data, c.data, self.data.size))
+                self.addBroadcastedTensor(blocks, threads, (self.data,  other.data, c.data, self.data.size))
             else:
                 self.addTensor(blocks, threads, (self.data, other.data, c.data, self.data.size))
 
