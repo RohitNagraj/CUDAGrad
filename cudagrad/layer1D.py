@@ -1,6 +1,6 @@
 import numpy as np
 
-from cudagrad.neuron import Neuron
+from cudagrad.neuron1D import Neuron
 from cudagrad.tensor import Tensor1D
 
 

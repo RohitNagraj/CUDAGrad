@@ -1,57 +1,8 @@
-from tensor.tensor import Tensor2D
+from cudagrad.tensor import Tensor2D
 import numpy as np
 import torch
 import cupy as cp
 
-# np.random.seed(0)
-#     a_base = np.random.rand(100, 100)
-#     b_base = np.random.rand(100, 100)
-#     d_base = np.random.rand(100, 100)
-#     grad_base = np.random.rand(100, 100)
-    
-
-#     # Create a Tensor
-#     a = Tensor(a_base, label="a")
-#     b = Tensor(b_base, label="b")
-#     d = Tensor(d_base, label="d")
-#     c = a + b
-#     c.label = "c"
-#     e = c @ d
-#     e.label = "e"
-#     f = e.sum()
-#     f.label = "f"
-#     f.backward()
-
-#     # Write Equivalent code in PyTorch
-#     a_t = torch.tensor(a_base, requires_grad=True, dtype=torch.float32)
-#     b_t = torch.tensor(b_base, requires_grad=True, dtype=torch.float32)
-#     c_t = a_t + b_t
-#     d_t = torch.tensor(d_base, requires_grad=True, dtype=torch.float32)
-#     e_t = c_t @ d_t
-
-#     c_t.retain_grad()
-#     e_t.retain_grad()
-#     f_t = e_t.sum()
-#     f_t.retain_grad()
-#     f_t.backward(torch.tensor(1))
-
-
-#     # Check all the gradients
-#     print("Check C: ", np.array_equal(cp.asnumpy(c.grad), c_t.grad.cpu().numpy()))
-#     print("Aproximate Check: ", np.allclose(cp.asnumpy(c.grad), c_t.grad.cpu().numpy()))
-#     print("Check B: ", np.array_equal(cp.asnumpy(b.grad), b_t.grad.cpu().numpy()))
-#     print("Aproximate Check: ", np.allclose(cp.asnumpy(b.grad), b_t.grad.cpu().numpy()))
-#     print("Check A: ", np.array_equal(cp.asnumpy(a.grad), a_t.grad.cpu().numpy()))
-#     print("Aproximate Check: ", np.allclose(cp.asnumpy(a.grad), a_t.grad.cpu().numpy()))
-#     print("Check D: ", np.array_equal(cp.asnumpy(d.grad), d_t.grad.cpu().numpy()))
-#     print("Aproximate Check: ", np.allclose(cp.asnumpy(d.grad), d_t.grad.cpu().numpy()))
-#     print("Check E: ", np.array_equal(cp.asnumpy(e.grad), e_t.grad.cpu().numpy()))
-#     print("Aproximate Check: ", np.allclose(cp.asnumpy(e.grad), e_t.grad.cpu().numpy()))
-#     print("Check F: ", np.array_equal(cp.asnumpy(f.grad), f_t.grad.cpu().numpy()))
-#     print("Aproximate Check: ", np.allclose(cp.asnumpy(f.grad), f_t.grad.cpu().numpy()))
-
-
-# Runner File to test the Tensor Class
 
 def validateSoftmax():
     print("Validating Softmax")
@@ -72,7 +23,7 @@ def validateSoftmax():
 
     # print("B Torch", b_t)
     b_t.backward()
-    
+
     # print("A Grad", a.grad[:-10])
     # print("A Torch Grad", a_t.grad[:-10])
 
@@ -95,8 +46,6 @@ def validateNN():
     W2 = Tensor2D(np.random.rand(100, 100) - 0.5, label="W2")
     b2 = Tensor2D(np.random.rand(100) - 0.5, label="b2")
 
-    
-
     print("-------------------")
     # Write Equivalent code in PyTorch
     a_t = torch.tensor(a_base, requires_grad=True, dtype=torch.float32)
@@ -104,7 +53,6 @@ def validateNN():
     b1_t = torch.tensor(b1.data, requires_grad=True, dtype=torch.float32)
     W2_t = torch.tensor(W2.data, requires_grad=True, dtype=torch.float32)
     b2_t = torch.tensor(b2.data, requires_grad=True, dtype=torch.float32)
-
 
     c = a @ W1 + b1
     print("C ", c.data)
@@ -115,14 +63,13 @@ def validateNN():
     d = c @ W2 + b2
     print("D ", d.data)
     d.label = "d"
-    e = d.crossEntropyLoss(cp.array(y_base.argmax(axis=1)))
+    e = d.cross_entropy_loss(cp.array(y_base.argmax(axis=1)))
     print("E ", e.data)
     e.label = "e"
     e.backward()
 
     print("E ", e.data)
 
-   
     c_t = a_t @ W1_t + b1_t
     print("C Torch", c_t)
     c_t = torch.nn.functional.relu(c_t)
@@ -137,7 +84,6 @@ def validateNN():
     d_t.retain_grad()
     e_t.backward()
 
-    
     # Check all the gradients
     print("Check C: ", np.array_equal(cp.asnumpy(c.grad), c_t.grad.cpu().numpy()))
     print("Aproximate Check: ", np.allclose(cp.asnumpy(c.grad), c_t.grad.cpu().numpy()))
@@ -153,10 +99,9 @@ def validateNN():
     print("Aproximate Check: ", np.allclose(cp.asnumpy(a.grad), a_t.grad.cpu().numpy()))
 
 
-
 def validate():
     validateNN()
 
+
 if __name__ == '__main__':
     validate()
-    

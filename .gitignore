@@ -4,3 +4,4 @@
 report*
 __pycache__
 src/tensor/__pycache__/
+data/higgs*
