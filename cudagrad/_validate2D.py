@@ -1,7 +1,8 @@
-from tensor.tensor import Tensor2D
+from cudagrad.tensor import Tensor2D
 import numpy as np
 import torch
 import cupy as cp
+
 
 def validateSoftmax():
     print("Validating Softmax")
@@ -22,7 +23,7 @@ def validateSoftmax():
 
     # print("B Torch", b_t)
     b_t.backward()
-    
+
     # print("A Grad", a.grad[:-10])
     # print("A Torch Grad", a_t.grad[:-10])
 
@@ -45,8 +46,6 @@ def validateNN():
     W2 = Tensor2D(np.random.rand(100, 100) - 0.5, label="W2")
     b2 = Tensor2D(np.random.rand(100) - 0.5, label="b2")
 
-    
-
     print("-------------------")
     # Write Equivalent code in PyTorch
     a_t = torch.tensor(a_base, requires_grad=True, dtype=torch.float32)
@@ -54,7 +53,6 @@ def validateNN():
     b1_t = torch.tensor(b1.data, requires_grad=True, dtype=torch.float32)
     W2_t = torch.tensor(W2.data, requires_grad=True, dtype=torch.float32)
     b2_t = torch.tensor(b2.data, requires_grad=True, dtype=torch.float32)
-
 
     c = a @ W1 + b1
     print("C ", c.data)
@@ -65,14 +63,13 @@ def validateNN():
     d = c @ W2 + b2
     print("D ", d.data)
     d.label = "d"
-    e = d.crossEntropyLoss(cp.array(y_base.argmax(axis=1)))
+    e = d.cross_entropy_loss(cp.array(y_base.argmax(axis=1)))
     print("E ", e.data)
     e.label = "e"
     e.backward()
 
     print("E ", e.data)
 
-   
     c_t = a_t @ W1_t + b1_t
     print("C Torch", c_t)
     c_t = torch.nn.functional.relu(c_t)
@@ -87,7 +84,6 @@ def validateNN():
     d_t.retain_grad()
     e_t.backward()
 
-    
     # Check all the gradients
     print("Check C: ", np.array_equal(cp.asnumpy(c.grad), c_t.grad.cpu().numpy()))
     print("Aproximate Check: ", np.allclose(cp.asnumpy(c.grad), c_t.grad.cpu().numpy()))
@@ -103,10 +99,9 @@ def validateNN():
     print("Aproximate Check: ", np.allclose(cp.asnumpy(a.grad), a_t.grad.cpu().numpy()))
 
 
-
 def validate():
     validateNN()
 
+
 if __name__ == '__main__':
     validate()
-    

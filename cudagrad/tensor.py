@@ -1,9 +1,9 @@
 import numpy as np
-
-from cudagrad import cuda
-
 import cupy as cp
 import cupyx.profiler
+
+from cudagrad import cuda
+from cuda._kernel_utils import KERNEL_DIR
 
 
 class Tensor1D:
@@ -207,22 +207,24 @@ class Tensor1D:
 
 class Tensor2D:
 
-    def __init__(self, data: list | np.ndarray, _children=(), _op="", label="", trackGradient=True) -> None:
-        self.data = cp.array(data).astype(cp.float32)
-        self.grad = cp.zeros_like(self.data)
+    def __init__(self, data: list | np.ndarray | cp.ndarray, _children=(), _op="", label="",
+                 trackGradient=True) -> None:
+        self.data = cp.array(data, dtype=cp.float32)
+        self.grad = cp.zeros_like(self.data, dtype=cp.float32)
         self._prev = set(_children)
         self._op = _op
         self.label = label
         self.trackGradient = trackGradient
         self._backward = lambda: None
+        self._initialize_cuda_kernel()
+
+    def CEIL_DIV(self, M, N):
+        return (((M) + (N) - 1) // (N))
 
     def __repr__(self):
         if self.label != "":
             return f"Tensor2D(shape={self.data.shape}, label={self.label})"
         return f"Tensor2D(shape={self.data.shape})"
-
-    def T(self):
-        return Tensor2D(self.data.T, label=self.label + "_T", trackGradient=self.trackGradient)
 
     def __add__(self, other):
         '''
@@ -230,10 +232,18 @@ class Tensor2D:
         '''
         # Broadcast the other tensor to the shape of self tensor
 
-        other = other if isinstance(other, Tensor2D) else Tensor2D(other)
-        c = Tensor2D(np.zeros_like(self.data), (self, other), "+")
+        if not isinstance(other, Tensor2D):
+            raise ValueError("Addition is only supported between two tensors")
+
+        c = Tensor2D(cp.zeros_like(self.data, dtype=cp.float32), (self, other), "+")
+
+        blocks, threads = self._calculate_elementwise_grid_and_block()
         with cupyx.profiler.profile():
-            c.data = self.data + other.data
+            if self.data.shape != other.data.shape:
+                self.addBroadcastedTensor(blocks, threads, (self.data, other.data, c.data, self.data.size))
+            else:
+                self.addTensor(blocks, threads, (self.data, other.data, c.data, self.data.size))
+
 
         def _backward():
             self.grad += 1.0 * c.grad
@@ -292,6 +302,7 @@ class Tensor2D:
         '''
         Matrix Multiply two tensors
         '''
+        # If Shape is not same, then raise an error
         if self.data.shape[1] != other.data.shape[0]:
             raise ValueError(f"Shape of Tensors are not same. {self.data.shape} != {other.data.shape}")
         other = other if isinstance(other, Tensor2D) else Tensor2D(other)
@@ -306,26 +317,6 @@ class Tensor2D:
         if self.trackGradient:
             c._backward = _backward
 
-        return c
-
-    def log(self):
-        c = Tensor2D(cp.log(self.data), (self,), "log(" + self.label + ")")
-
-        def _backward():
-            self.grad += 1.0 * c.grad / self.data
-
-        if self.trackGradient:
-            c._backward = _backward
-        return c
-
-    def exp(self):
-        c = Tensor2D(cp.exp(self.data), (self,), "exp(" + self.label + ")")
-
-        def _backward():
-            self.grad += 1.0 * c.grad * c.data
-
-        if self.trackGradient:
-            c._backward = _backward
         return c
 
     def __truediv__(self, other):
@@ -349,6 +340,29 @@ class Tensor2D:
 
         return c
 
+    def T(self):
+        return Tensor2D(self.data.T, label=self.label + "_T", trackGradient=self.trackGradient)
+
+    def log(self):
+        c = Tensor2D(cp.log(self.data), (self,), "log(" + self.label + ")")
+
+        def _backward():
+            self.grad += 1.0 * c.grad / self.data
+
+        if self.trackGradient:
+            c._backward = _backward
+        return c
+
+    def exp(self):
+        c = Tensor2D(cp.exp(self.data), (self,), "exp(" + self.label + ")")
+
+        def _backward():
+            self.grad += 1.0 * c.grad * c.data
+
+        if self.trackGradient:
+            c._backward = _backward
+        return c
+
     def sum(self, axis=None, keepdims=False):
         c = Tensor2D(cp.sum(self.data, axis=axis, keepdims=keepdims), (self,), "sum(" + self.label + ")")
 
@@ -367,7 +381,7 @@ class Tensor2D:
 
         return data
 
-    def crossEntropyLoss(self, y):
+    def cross_entropy_loss(self, y):
         '''self.data is the logits and y is a vetor of correct labels'''
         c = Tensor2D(cp.zeros_like(self.data), (self, self), "crossEntropyLoss(" + self.label + ")")
 
@@ -396,9 +410,26 @@ class Tensor2D:
             c._backward = _backward
         return c
 
+    def _initialize_cuda_kernel(self):
+        with open(f"{KERNEL_DIR}/add2D.cuh", "r") as f:
+            addTensorCode = f.read()
+        self.addTensor = cp.RawKernel(addTensorCode, "addTensor")
+        self.addTensor.compile()
+
+        self.addBroadcastedTensor = cp.RawKernel(addTensorCode, "addBroadcastedTensor")
+        self.addBroadcastedTensor.compile()
+
+    def _calculate_grid_and_block(self):
+        blocks = (self.CEIL_DIV(self.data.shape[0], 32), self.CEIL_DIV(self.data.shape[1], 32))
+        threads = (32 * 32,)
+        return (blocks, threads)
+
+    def _calculate_elementwise_grid_and_block(self):
+        numThreads = min(self.data.shape[1], 1024)
+        numBlocks = self.CEIL_DIV(self.data.size, numThreads)
+        return (numBlocks,), (numThreads,)
+
     def backward(self):
-        # Run the Backward Function of all the children
-        # First construct the topological order of the graph with structure
         #  [[Tensor, tensor], [Tensor, tensor, Tensor]] where 0th tensor can be computed first
         print("Running Backward")
         topo = []
@@ -419,10 +450,8 @@ class Tensor2D:
 
 
 if __name__ == '__main__':
-    # Testing the tensor class here, enforcing output is similar to torch.
     import time
 
-    # backend = 'numpy'
     backend = 'cuda'
     size = 4
 
