@@ -20,7 +20,7 @@ class MLP:
 
     def zero_grad(self):
         for p in self.parameters():
-            p.grad = 0.0
+            p.zero_grad()
 
 
 if __name__ == '__main__':
@@ -34,6 +34,7 @@ if __name__ == '__main__':
         [1.0, 1.0, -1.0]
     ]
     ys = Tensor2D([1.0, -1.0, -1.0, 1.0])
+    ys.reshape_inplace(-1, 1)
 
 
     # MSE Loss
@@ -59,4 +60,4 @@ if __name__ == '__main__':
             p.data -= learning_rate * p.grad
 
         # if iter % 10 == 0:
-        print(f"Iter: {iter}, Loss: {loss}, Time: {time.time() - start}")
+        print(f"Iter: {iter}, Loss: {loss.data}, Time: {time.time() - start}")

@@ -1,9 +1,14 @@
+import time
+
 from micrograd.nn import MLP as MicrogradMLP
 from micrograd.engine import Value
 import numpy as np
 
 from data.dataset import Dataset
 from benchmark.parameters import Parameters
+
+import sys
+sys.setrecursionlimit(1024 * 16)
 
 
 class MicrogradBenchmark:
@@ -20,8 +25,9 @@ class MicrogradBenchmark:
         accuracy = [(yi > 0) == (scorei.data > 0) for yi, scorei in zip(y_true, y_pred)]
         return sum(accuracy) / len(accuracy)
 
-    def _train(self, X: np.array, y: np.array, batch_size=256, n_iter=100):
+    def _train(self, X: np.array, y: np.array, batch_size=256, n_iter=1):
         for iter in range(n_iter):
+            start = time.time()
 
             batch_loss = []
             batch_accuracy = []
@@ -54,6 +60,7 @@ class MicrogradBenchmark:
 
             print(f"step {iter + 1},  loss {(sum(batch_loss) / len(batch_loss)).data}, "
                   f"accuracy {sum(batch_accuracy) / len(batch_accuracy) * 100}%")
+            print(f"Time taken {(time.time() - start)} seconds")
 
     def run(self, dataset_size):
         dataset = Dataset()

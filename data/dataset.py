@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 
 class Dataset:
@@ -18,4 +19,12 @@ class Dataset:
         df = pd.read_csv(self.path, nrows=size, header=None)
         X = df.drop(columns=[0]).to_numpy()
         y = df[0].to_numpy()
+        # X = np.array([
+        #     [2.0, 3.0, -1.0],
+        #     [3.0, -1.0, 0.5],
+        #     [0.5, 1.0, 1.0],
+        #     [1.0, 1.0, -1.0]
+        # ])
+        # y = np.array([1.0, -1.0, -1.0, 1.0])
+
         return X, y

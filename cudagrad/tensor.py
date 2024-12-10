@@ -3,7 +3,7 @@ import cupy as cp
 import cupyx.profiler
 
 from cudagrad import cuda
-from cuda._kernel_utils import KERNEL_DIR
+from cudagrad.cuda._kernel_utils import KERNEL_DIR
 
 
 class Tensor1D:
@@ -244,7 +244,6 @@ class Tensor2D:
             else:
                 self.addTensor(blocks, threads, (self.data, other.data, c.data, self.data.size))
 
-
         def _backward():
             self.grad += 1.0 * c.grad
             # If shapes are not same, then we need to sum the gradients
@@ -276,6 +275,7 @@ class Tensor2D:
 
         if self.trackGradient:
             c._backward = _backward
+        return c
 
     def __mul__(self, other):
         '''
@@ -340,8 +340,27 @@ class Tensor2D:
 
         return c
 
+    def __pow__(self, other):
+
+        assert isinstance(other, (int, float)), "Only int and float powers are supported for now."
+        c = Tensor2D(self.data ** other, (self,), "pow(" + self.label + ")")
+
+        def _backward():
+            self.grad += other * (self.data ** (other - 1)) * c.grad
+
+        if self.trackGradient:
+            c._backward = _backward
+
+        return c
+
+    def __neg__(self):
+        return self * Tensor2D(-1 * cp.ones_like(self.data))
+
     def T(self):
         return Tensor2D(self.data.T, label=self.label + "_T", trackGradient=self.trackGradient)
+
+    def zero_grad(self):
+        self.grad = cp.zeros_like(self.data, dtype=cp.float32)
 
     def log(self):
         c = Tensor2D(cp.log(self.data), (self,), "log(" + self.label + ")")
@@ -429,9 +448,13 @@ class Tensor2D:
         numBlocks = self.CEIL_DIV(self.data.size, numThreads)
         return (numBlocks,), (numThreads,)
 
+    def reshape_inplace(self, *args):
+        self.data = self.data.reshape(*args)
+        self.grad = self.grad.reshape(*args)
+
+
     def backward(self):
         #  [[Tensor, tensor], [Tensor, tensor, Tensor]] where 0th tensor can be computed first
-        print("Running Backward")
         topo = []
         visited = set()
 
@@ -451,24 +474,7 @@ class Tensor2D:
 
 if __name__ == '__main__':
     import time
+    a = Tensor2D(np.random.randn(3,3))
+    b = -a
+    print(b)
 
-    backend = 'cuda'
-    size = 4
-
-    start = time.time()
-
-    # a = Tensor1D(np.random.rand(size), backend=backend, label='a')
-    # b = Tensor1D(np.random.rand(size), backend=backend, label='b')
-    a = Tensor1D([1], label='a')
-    b = Tensor1D([2], label='b')
-    c = Tensor1D.concat([a, b])
-    c.label = 'c'
-    d = Tensor1D([3], label='d')
-    e = Tensor1D([3], label='e')
-    f = Tensor1D.concat([d, e])
-    g = c.dot(f)
-    g.label = 'g'
-    # e = a.exp()
-
-    g.backward()
-    print(f"Backend: {backend}, Time Taken: {time.time() - start} seconds")
