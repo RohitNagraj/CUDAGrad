@@ -2,6 +2,7 @@ import numpy as np
 
 from cudagrad.tensor import Tensor2D
 
+
 # TODO: There is some bug with the Tensor2D class. The grad of self.b are suspiciously whole numbers.
 
 

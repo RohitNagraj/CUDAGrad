@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 
 from benchmark.parameters import Parameters
@@ -10,18 +12,19 @@ class CUDAGrad1DBenchmark:
     def __init__(self, n_input: int, n_outputs: list):
         self.model = MLP(n_input, n_outputs)
         print(self.model)
-        print("No. of Tensors in CUDAGrad", len(self.model.parameters()))
+        print("No. of 1D Tensors in CUDAGrad", len(self.model.parameters()))
 
     def _loss(self, y_true, y_pred):
         return ((y_true - y_pred) ** 2).sum()
 
     def _accuracy(self, y_true, y_pred):
-        accuracy = [(yi > 0) == (scorei.data > 0) for yi, scorei in zip(y_true, y_pred)]
+        accuracy = [(yi > 0) == (scorei > 0) for yi, scorei in zip(y_true.data, y_pred.data)]
         return sum(accuracy) / len(accuracy)
 
-    def _train(self, X: np.array, y: np.array, batch_size=256, n_iter=100, lr=1e-1):
+    def _train(self, X: np.array, y: np.array, batch_size=256, n_iter=1, lr=1e-1):
 
         for iter in range(n_iter):
+            start = time.time()
             batch_loss = []
             batch_accuracy = []
 
@@ -30,6 +33,7 @@ class CUDAGrad1DBenchmark:
                 end_idx = min(i + batch_size, y.shape[0])
 
                 Xb, yb = X[start_idx:end_idx], y[start_idx:end_idx]
+                yb = Tensor1D(yb)
 
                 # Forward pass
                 y_pred = list(map(self.model, Xb))
@@ -51,6 +55,7 @@ class CUDAGrad1DBenchmark:
 
             print(f"step {iter + 1}, loss {sum(batch_loss) / len(batch_loss)}, "
                   f"accuracy {sum(batch_accuracy) / len(batch_accuracy) * 100}%")
+            print(f"Time taken: {time.time() - start}")
 
     def run(self, dataset_size):
         dataset = Dataset()

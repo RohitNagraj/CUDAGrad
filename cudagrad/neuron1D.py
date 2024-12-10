@@ -31,9 +31,24 @@ class Neuron:
 
 
 if __name__ == '__main__':
-    size = 5
-    n = Neuron(size)
-    x = Tensor1D(np.random.randn(size))
-    y = n(x)
-    y.backward()
-    print(y)
+    x = Tensor1D([10, 20, 30, 40])
+    w = Tensor1D([1, 2, 3, 4])
+    b = Tensor1D([1, ])
+    activation = w.dot(x) + b
+    output = activation.relu()
+
+    output.backward()
+
+    from cudagrad.tensor import Tensor2D
+
+x = Tensor1D([10, 20, 30, 40]).reshape(-1, 1)
+w = Tensor2D([[1, 2, 3, 4],
+              [5, 6, 7, 8],
+              [9, 10, 11, 12],
+              [13, 14, 15, 16]])
+b = Tensor2D([1, 2, 3, 4]).reshape(-1, 1)
+
+activation = w.dot(x) + b
+output = activation.relu()
+
+output.backward()
