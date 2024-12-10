@@ -1,2 +1,5 @@
 numpy==2.1.2
 pycuda==2024.1.2
+micrograd
+pandas
+cupy-cuda12x

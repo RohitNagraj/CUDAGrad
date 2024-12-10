@@ -25,7 +25,8 @@ class MicrogradBenchmark:
         accuracy = [(yi > 0) == (scorei.data > 0) for yi, scorei in zip(y_true, y_pred)]
         return sum(accuracy) / len(accuracy)
 
-    def _train(self, X: np.array, y: np.array, batch_size=256, n_iter=1):
+    def _train(self, X: np.array, y: np.array, batch_size=256, n_iter=20):
+        print("Starting micrograd training. This will take some time...")
         for iter in range(n_iter):
             start = time.time()
 
@@ -60,7 +61,7 @@ class MicrogradBenchmark:
 
             print(f"step {iter + 1},  loss {(sum(batch_loss) / len(batch_loss)).data}, "
                   f"accuracy {sum(batch_accuracy) / len(batch_accuracy) * 100}%")
-            print(f"Time taken {(time.time() - start)} seconds")
+            # print(f"Time taken {(time.time() - start)} seconds")
 
     def run(self, dataset_size):
         dataset = Dataset()
